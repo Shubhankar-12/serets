@@ -4,7 +4,10 @@ const ejs = require('ejs');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const encrypt = require('mongoose-encryption');
-const md5 = require('md5');
+const bcrypt = require('bcrypt');
+
+const saltRounds = 10;
+
 
 mongoose.connect("mongodb://localhost:27017/newuserDB");
 
@@ -34,18 +37,23 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
     const userName = req.body.username
-    const password = md5(req.body.password)
+    const password = req.body.password
     User.findOne({ email: userName }, (err, foundUser) => {
         if (err)
             console.log(err);
         else {
             if (foundUser) {
-                if (foundUser.password === password) {
-                    res.render('secrets.ejs')
-                }
-                else
-                    res.send("No such user found!")
+
+                bcrypt.compare(password, foundUser.password, function (err, result) {
+                    if (result) {
+                        res.render('secrets.ejs')
+                    }
+                    else
+                        res.send("Incorrect Password!")
+                });
             }
+            else
+                res.send("No such user found!")
         }
     })
 })
@@ -55,16 +63,19 @@ app.get('/register', (req, res) => {
 })
 
 app.post('/register', (req, res) => {
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
+
+    bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        });
+        newUser.save((err) => {
+            if (err)
+                console.log(err);
+            else
+                res.render('secrets.ejs');
+        })
     });
-    newUser.save((err) => {
-        if (err)
-            console.log(err);
-        else
-            res.render('secrets.ejs');
-    })
 })
 
 app.listen(3000, () => {
